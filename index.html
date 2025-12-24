@@ -30,12 +30,32 @@
         .active { display: block; }
 
         /* Dialogues */
-        #dialogue-container { position: absolute; bottom: 20px; left: 5%; width: 90%; background: rgba(255, 255, 255, 0.95); border: 4px solid var(--pink); border-radius: 15px; padding: 15px; z-index: 100; cursor: pointer; min-height: 110px; display: none; }
+       #dialogue-container { 
+    position: absolute; 
+    bottom: 12%; /* On utilise un pourcentage pour que ça s'adapte à tous les écrans */
+    left: 5%; 
+    width: 90%; 
+    background: rgba(255, 255, 255, 0.95); 
+    border: 4px solid var(--pink); 
+    border-radius: 15px; 
+    padding: 15px; 
+    z-index: 100; 
+    cursor: pointer; 
+    min-height: 110px; 
+    display: none; 
+}
         .name-tag { font-weight: bold; color: var(--pink); margin-bottom: 5px; font-size: 1.1rem; }
         .text-content { font-size: 0.95rem; line-height: 1.3; color: #333; }
 
         /* Sprites */
-        .sprite { position: absolute; bottom: 120px; height: 35%; transition: all 0.3s ease; z-index: 10; object-fit: contain; }
+        .sprite { 
+    position: absolute; 
+    bottom: 25%; /* Remonte les personnages par rapport au bas */
+    height: 35%; 
+    transition: all 0.3s ease; 
+    z-index: 10; 
+    object-fit: contain; 
+}
         .left { left: -5%; } 
         .center { left: 50%; transform: translateX(-50%); } 
         .right { right: -5%; }
@@ -96,7 +116,7 @@
             <div class="stat-item" id="mj-timer-label">Temps: 0</div>
         </div>
         <div id="mj-arena" style="width:100%; height:100%; position:relative;"></div>
-        <div id="mj-controls" style="position:absolute; bottom:30px; width:100%; display:none; justify-content:center; gap:30px; align-items:center;"></div>
+        <div id="mj-controls" style="position:absolute; bottom:10%; width:100%; display:none; justify-content:center; gap:30px; align-items:center;"></div>
     </div>
 
     <div id="transition-screen" class="layer">
@@ -634,3 +654,4 @@
 </body>
 
 </html>
+
