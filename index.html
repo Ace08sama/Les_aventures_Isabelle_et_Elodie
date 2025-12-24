@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Isabelle & Elodie - L'Aventure</title>
+    <style>
+        :root { --pink: #FF69B4; --gold: #FFD700; --red: #ff4d4d; --green: #2ecc71; }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { background: #000; height: 100vh; display: flex; justify-content: center; align-items: center; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        
+        #game-container { width: 100vw; height: 100vh; max-width: 500px; position: relative; background: #222; overflow: hidden; border: 2px solid #333; }
+        .layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; background-size: cover; background-position: center; }
+        .active { display: block; }
+
+        /* Dialogues */
+        #dialogue-container { position: absolute; bottom: 20px; left: 5%; width: 90%; background: rgba(255, 255, 255, 0.95); border: 4px solid var(--pink); border-radius: 15px; padding: 15px; z-index: 100; cursor: pointer; min-height: 110px; display: none; }
+        .name-tag { font-weight: bold; color: var(--pink); margin-bottom: 5px; font-size: 1.1rem; }
+        .text-content { font-size: 0.95rem; line-height: 1.3; color: #333; }
+
+        /* Sprites */
+        .sprite { position: absolute; bottom: 120px; height: 35%; transition: all 0.3s ease; z-index: 10; object-fit: contain; }
+        .left { left: -5%; } 
+        .center { left: 50%; transform: translateX(-50%); } 
+        .right { right: -5%; }
+
+        /* Mini-jeux */
+        #mj-layer { z-index: 150; background-color: #333; display: none; }
+        .falling { position: absolute; z-index: 160; }
+        .player-mj { position: absolute; bottom: 20px; height: 80px; z-index: 165; }
+        .stat-bar { position: absolute; top: 10px; width: 100%; display: flex; justify-content: space-around; z-index: 170; pointer-events: none; }
+        .stat-item { background: rgba(0,0,0,0.8); color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; min-width: 100px; text-align: center; }
+        
+        #split-container { display: none; width: 100%; height: 100%; position: absolute; }
+        .split-side { width: 50%; height: 100%; position: absolute; background-size: cover; background-position: center; }
+
+        #transition-screen { background: #000; color: #fff; z-index: 200; display: none; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px; }
+        #badge-modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 300; display: none; flex-direction: column; justify-content: center; align-items: center; color: white; text-align: center; padding: 20px; }
+        #badge-img { width: 150px; height: 150px; margin: 20px; object-fit: contain; }
+
+        .shake { animation: shakeAnim 0.3s infinite; }
+        @keyframes shakeAnim { 0% { transform: translate(0,0); } 25% { transform: translate(5px,5px); } 50% { transform: translate(-5px,-5px); } 75% { transform: translate(5px,-5px); } 100% { transform: translate(0,0); } }
+        
+        button { padding: 15px 30px; background: var(--pink); border: none; color: white; border-radius: 50px; font-weight: bold; font-size: 1.2rem; cursor: pointer; }
+        .mj-btn-img { width: 75px; height: 75px; cursor: pointer; transition: transform 0.1s; }
+        .mj-btn-img:active { transform: scale(0.9); }
+        .btn-swipe { width: 80px; height: 80px; border-radius: 50%; border: none; font-size: 2rem; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .btn-red { background: var(--red); }
+        .btn-green { background: var(--green); }
+        
+        #final-img-1, #final-img-2 { cursor: pointer; background-size: cover; background-position: center; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="fx-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:400;"></canvas>
+
+    <div id="screen-home" class="layer active" style="background-image: url('assets/backgrounds/bg_accueil.png'); display: flex; justify-content: center; align-items: center;">
+        <button onclick="startGame()">COMMENCER L'AVENTURE</button>
+    </div>
+
+    <div id="screen-vn" class="layer">
+        <div id="split-container">
+            <div id="split-l" class="split-side" style="left:0; border-right:2px solid white;"></div>
+            <div id="split-r" class="split-side" style="right:0;"></div>
+        </div>
+        <img id="char-l" class="sprite left">
+        <img id="char-c" class="sprite center">
+        <img id="char-r" class="sprite right">
+        <div id="dialogue-container" onclick="nextStep()">
+            <div id="dialogue-name" class="name-tag"></div>
+            <div id="dialogue-text" class="text-content"></div>
+        </div>
+    </div>
+
+    <div id="mj-layer" class="layer">
+        <div class="stat-bar">
+            <div class="stat-item" id="mj-score-label">Score: 0</div>
+            <div class="stat-item" id="mj-timer-label">Temps: 0</div>
+        </div>
+        <div id="mj-arena" style="width:100%; height:100%; position:relative;"></div>
+        <div id="mj-controls" style="position:absolute; bottom:30px; width:100%; display:none; justify-content:center; gap:30px; align-items:center;"></div>
+    </div>
+
+    <div id="transition-screen" class="layer">
+        <h1 id="trans-text" style="font-size: 1.5rem; margin-bottom: 20px;"></h1>
+        <p id="mj-desc" style="font-style: italic; color: var(--pink); padding: 0 20px; font-size: 1.2rem;"></p>
+        <p style="margin-top: 30px; font-size: 0.8rem; opacity: 0.7;"></p>
+    </div>
+
+    <div id="badge-modal">
+        <h2>BADGE DÉBLOQUÉ !</h2>
+        <img id="badge-img" src="">
+        <button onclick="closeBadge()">CONTINUER</button>
+    </div>
+
+    <div id="screen-final" class="layer" style="background:#000; color:white; padding:30px; text-align:center; flex-direction:column; justify-content:center; align-items:center;">
+        <p id="final-top-text" style="margin-bottom:20px; font-weight:bold;"></p>
+        <div id="badge-grid" style="display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-bottom:20px;"></div>
+        <div id="final-message" style="background:rgba(255,255,255,0.1); padding:15px; border-radius:10px; font-size:0.9rem; line-height:1.4;"></div>
+        <p style="margin-top:20px; font-size:0.7rem; opacity:0.5;">(Clique pour voir la suite)</p>
+    </div>
+
+    <div id="final-img-1" class="layer" onclick="showLastScreen()"></div>
+    <div id="final-img-2" class="layer" onclick="location.reload()"></div>
+</div>
+
+<script>
+    const PATHS = { bg: 'assets/backgrounds/', char: 'assets/sprites/characters/', item: 'assets/sprites/items/', ui: 'assets/sprites/ui/', profiles: 'assets/sprites/Profiles/' };
+    const ASSETS = {
+        isabelle: PATHS.char + 'Isabelle.png', elodie: PATHS.char + 'Elodie.png', bonanza: PATHS.char + 'Bonanza.png',
+        jpp: PATHS.char + 'JPP.png', cops: PATHS.char + 'Cops.png', jackie: PATHS.char + 'Jackie.png', moundir: PATHS.char + 'Moundir.png',
+        coffee: PATHS.item + 'coffee.png', tea: PATHS.item + 'tea.png', eau: PATHS.item + 'eau.png',
+        d_urgent: PATHS.ui + 'dossier_urgent.png', d_faire: PATHS.ui + 'dossier_a_faire.png', d_traite: PATHS.ui + 'dossier_traité.png',
+        caca: PATHS.item + 'caca.png', tel: PATHS.item + 'telephone.png',
+        heart: PATHS.item + 'emoji_coeur.png', middlefinger: PATHS.item + 'emoji_middlefinger.png'
+    };
+
+    let currentStep = 0;
+    let score = 0;
+    let timer = 0;
+    let mjLoop = null;
+    let collectedBadges = [];
+
+    const SCENARIO = [
+        { type: 'trans', text: 'Chapitre 1 : La rencontre', dur: 2000 },
+        { type: 'bg', img: 'bg_office.png' },
+        { type: 'sprite', r: ASSETS.isabelle, l:null, c:null },
+        { type: 'talk', name: 'Isabelle (pensée)', text: "Mais… pourquoi j'ai autant de boulot aujourd'hui… c'est illégal. 😮‍💨" },
+        { type: 'sprite', c: ASSETS.bonanza, l: ASSETS.elodie },
+        { type: 'talk', name: 'Bonanza', text: "Bonjour tout le monde, je vous présente Élodie, elle rejoint l'équipe aujourd'hui." },
+        { type: 'talk', name: 'Élodie', text: "Bonjour ! 🙂" },
+        { type: 'sprite', c: null },
+        { type: 'trans', text: '30 minutes plus tard...', dur: 1500 },
+        { type: 'talk', name: 'Isabelle', text: "Tu veux boire un café ?" },
+        { type: 'talk', name: 'Élodie', text: "Oh non merci, c'est gentil, mais je ne bois pas de café…" },
+        { type: 'talk', name: 'Isabelle', text: "Ah… bah j'ai aussi du thé si tu préfères." },
+        { type: 'talk', name: 'Élodie', text: "Non merci, ça ira, mais c'est très gentil." },
+        { type: 'talk', name: 'Isabelle (pensée)', text: "Quelle pouf… Elle a même pas voulu de mon café ! Avec son air de première de la classe là… " },
+        { type: 'trans', text: 'MINI-JEU : Le Café', desc: "Rattrape le maximum de CAFÉ, mais évite le THÉ et l'EAU !", dur: 4000 },
+        { type: 'mj', id: 1, badge: 'badge_café.png', bg: 'bg_game_1.png' },
+
+        { type: 'trans', text: 'Chapitre 2 : Le binôme', dur: 2000 },
+        { type: 'bg', img: 'bg_office.png' },
+        { type: 'sprite', l: ASSETS.elodie, r: ASSETS.isabelle, c:null },
+        { type: 'talk', name: 'Élodie', text: "❓❓❓" },
+        { type: 'talk', name: 'Isabelle', text: "Viens je vais te montrer." },
+        { type: 'talk', name: 'Isabelle', text: "Tu sélectionnes ça. Après tu ouvres celui-là, clique 2 fois, va là." },
+        { type: 'talk', name: 'Isabelle', text: "Ok maintenant tu crée un nouveau, tu fais ça, clique ici. Et voilà" },
+        { type: 'talk', name: 'Élodie', text: "Ok j'ai compris, j'essaye !" },
+        { type: 'talk', name: 'Isabelle', text: "Ah oui tu comprends rapidement !" },
+        { type: 'talk', name: 'Isabelle', text: "👍" },
+        { type: 'trans', text: 'Les jours passent...', dur: 1500 },
+        { type: 'talk', name: 'Isabelle', text: "On fait une sacrée équipe ! " },
+        { type: 'talk', name: 'Elodie', text: "Binôme de choc ! " },
+        { type: 'trans', text: 'MINI-JEU : Archivage', desc: "Classe les dossiers le plus vite possible dans les bonnes catégories !", dur: 4000 },
+        { type: 'mj', id: 2, badge: 'badge_survivor.png', bg: 'bg_game_2.png' },
+
+        { type: 'trans', text: 'Chapitre 3 : Les connards', dur: 2000 },
+        { type: 'bg', img: 'bg_office.png' },
+        { type: 'sprite', l: ASSETS.elodie, r: ASSETS.isabelle, c: null },
+        { type: 'talk', name: 'Isabelle', text: "Bon, on a quelques minutes de calme, profitons-en." },
+        { type: 'trans', text: 'Soudain,...', dur: 1500 },
+        { type: 'sprite', c: ASSETS.jpp },
+        { type: 'talk', name: 'JPP', text: "Isabelle, pour vos congés j’ai réfléchis, ça ne m'intéresse pas !" },
+        { type: 'talk', name: 'Isabelle (pensée)', text: "Connard ! 😑" },
+        { type: 'trans', text: 'Quelques instants plus tard', dur: 1500 },
+        { type: 'sprite', c: ASSETS.cops },
+        { type: 'talk', name: 'Cops (à Élodie)', text: "Je vous avais envoyé un mail pour changer les conditions, pourquoi c'est pas fait ?" },
+        { type: 'talk', name: 'Élodie', text: "Bah la demande est faite, c'est en cours. 🤷‍♀️" },
+        { type: 'talk', name: 'Élodie (pensée)', text: "Mais elle me saoule elle ! 😠" },
+        { type: 'trans', text: 'Quelques instants plus tard', dur: 1500 },
+        { type: 'sprite', c: ASSETS.bonanza },
+        { type: 'talk', name: 'Bonanza (à Isabelle)', text: "Il faut refaire cette facture, je suis super RAF donc c'est moi qui invente les lois, ok?" },
+        { type: 'talk', name: 'Isabelle (soupir)', text: "Je m'en occupe… 😡" },
+        { type: 'sprite', c: null },
+        { type: 'talk', name: 'Isabelle', text: "C'est bon, je vais pouvoir travailler maintenant ?" },
+        { type: 'talk', name: 'Élodie', text: "Mais ils ont vraiment tous un pète au casque ici." },
+        { type: 'talk', name: 'Isabelle', text: "C'est clair ! Beaucoup trop de connards pour une si petite boîte." },
+        { type: 'talk', name: 'Élodie', text: "Faut qu'on trouve un moyen de les gérer… 😂" },
+        { type: 'talk', name: 'Isabelle', text: "J’ai une petite idée 😈" },
+        { type: 'trans', text: 'MINI-JEU : Défouloir', desc: "Clique sur tous les connards qui apparaissent pour les faire disparaître !", dur: 4000 },
+        { type: 'mj', id: 3, badge: 'badge_connards.png', bg: 'bg_game_3.png' },
+
+        { type: 'trans', text: 'Chapitre 4 : Les toilettes piégées', dur: 2000 },
+        { type: 'bg', img: 'bg_office.png' },
+        { type: 'sprite', l: ASSETS.elodie, c: ASSETS.jackie, r: ASSETS.isabelle },
+        { type: 'talk', name: 'Isabelle', text: "Les filles…" },
+        { type: 'talk', name: 'Élodie & Jackie', text: "Oui ?" },
+        { type: 'talk', name: 'Isabelle', text: "L'une de vous deux est allée aux toilettes récemment ?" },
+        { type: 'talk', name: 'Élodie', text: "Non pas encore, mais je comptais y aller là, pourquoi ?" },
+        { type: 'talk', name: 'Isabelle', text: "Faites attention… surprises possibles." },
+        { type: 'trans', text: 'Quelques jours plus tard', dur: 2000 },
+        { type: 'bg', img: 'bg_toilettes.png' },
+        { type: 'sprite', l: null, c: ASSETS.jackie, r: null },
+        { type: 'shake', dur: 1000, text: "ÉNORME TONNERRE DE BRUITS DE PETS !!!!" },
+        { type: 'talk', name: 'Jackie', text: "Oh putain faut que je sorte !!!!" },
+        { type: 'bg', img: 'bg_office.png' },
+        { type: 'sprite', l: ASSETS.elodie, c: null, r: ASSETS.isabelle },
+        { type: 'talk', name: 'Isabelle', text: "La Cops vient d'aller aux toilettes alors que Jackie y est." },
+        { type: 'talk', name: 'Élodie', text: "Elle va mourir !! 😂" },
+        { type: 'trans', text: 'Quelques jours plus tard', dur: 2000 },
+        { type: 'bg', img: 'bg_toilettes.png' },
+        { type: 'sprite', l:null, c: ASSETS.isabelle, r:null },
+        { type: 'talk', name: 'Isabelle', text: "Oh mon Dieu… ☠️ C'est quoi ce carnage ?! 😱" },
+        { type: 'talk', name: 'Isabelle (pensée)', text: "Il faut que je sorte d'ici MAINTENANT ! Mais quelle grosse dégueulasse ! 😱" },
+        { type: 'bg', img: 'bg_office.png' },
+        { type: 'sprite', l: ASSETS.elodie, c: ASSETS.jackie, r: ASSETS.isabelle },
+        { type: 'talk', name: 'Isabelle (paniquée)', text: "Les filles, c'est l'horreur là-dedans !" },
+        { type: 'talk', name: 'Isabelle', text: "On doit former une alliance. Un pacte." },
+        { type: 'talk', name: 'Élodie', text: "Un pacte ?" },
+        { type: 'talk', name: 'Isabelle', text: "Ouais pour notre survie, on se partage les chiottes de gauche et les deux dégueulasses prennent celles de droite." },
+        { type: 'talk', name: 'Élodie', text: "Deal !" },
+        { type: 'talk', name: 'Isabelle', text: "Mais d’abord... faut survivre à ça !" },
+        { type: 'trans', text: 'MINI-JEU : Évitement', desc: "Déplace Isabelle pour éviter les chutes de caca ! Attention, ça tombe vite !", dur: 4000 },
+        { type: 'mj', id: 4, badge: 'badge_caca.png', bg: 'bg_game_4.png' },
+        { type: 'bg', img: 'bg_office.png' },
+        { type: 'sprite', l: null, c: ASSETS.cops, r: null },
+        { type: 'talk', name: 'Cops', text: "Ah !! Je me sens beaucoup mieux maintenant ! 😌" },
+
+        { type: 'trans', text: 'Chapitre 5 : Swipeuses pro', dur: 2000 },
+        { type: 'bg', img: 'bg_breakroom.jpg' },
+        { type: 'sprite', l: ASSETS.elodie, c: ASSETS.jackie, r: ASSETS.isabelle },
+        { type: 'talk', name: 'Jackie', text: "Bon… Il faut que je me remette sur le marché." },
+        { type: 'talk', name: 'Isabelle', text: "Tu veux pécho ?" },
+        { type: 'talk', name: 'Élodie', text: "Oh ! On va t'aider à créer ton profil !" },
+        { type: 'talk', name: 'Isabelle', text: "Vas-y, donne nous tes critères." },
+        { type: 'talk', name: 'Jackie', text: "J’aime les mecs grands, beaux, musclés, métisses, drôles..." },
+        { type: 'talk', name: 'Élodie', text: "Ok remplissons le profil, il faut des photos." },
+        { type: 'talk', name: 'Jackie', text: "Celles-là c’est bon ?" },
+        { type: 'talk', name: 'Isabelle', text: "Euh.. par contre la première est non contractuelle." },
+        { type: 'talk', name: 'Jackie', text: "Ah euh bah celle-là alors." },
+        { type: 'talk', name: 'Élodie', text: "Ok, ensuite il faut indiquer ce que tu recherches." },
+        { type: 'talk', name: 'Jackie', text: "Ah moi je veux une relation sérieuse ! 🍑 🍆" },
+        { type: 'talk', name: 'Isabelle', text: "Profil terminé ! On va trier ensemble." },
+        { type: 'trans', text: 'MINI-JEU : Swipe', desc: "Clique sur le COEUR si le mec est BEAU, sur la CROIX s'il est MOCHE !", dur: 4000 },
+        { type: 'mj', id: 5, badge: 'badge_cupidon.png', bg: 'bg_game_5.png' },
+        { type: 'bg', img: 'bg_breakroom.jpg' },
+        { type: 'sprite', l: ASSETS.elodie, c: ASSETS.jackie, r: ASSETS.isabelle },
+        { type: 'talk', name: 'Jackie', text: "Oh j'ai un match !! " },
+        { type: 'talk', name: 'Isabelle', text: "Les choses sérieuses commencent !" },
+        { type: 'trans', text: 'Quelques jours plus tard', dur: 2000 },
+        { type: 'talk', name: 'Jackie', text: "Les filles, j’ai eu un date hier ! Il est venu me chercher à 22h chez moi et il m’a emmené sur un chantier !" },
+        { type: 'talk', name: 'Isabelle', text: "Un... chantier ? 😶" },
+        { type: 'talk', name: '', text: "Isabelle et Elodie se regardent, retiennent un rire" },
+        { type: 'talk', name: 'Jackie', text: "Ouais, c’était magique ! Je vais lui cuisiner une ratatouille." },
+        { type: 'talk', name: 'Élodie', text: "Elle est sérieuse là ?" },
+        { type: 'talk', name: 'Jackie', text: "Et j’ai un autre date ! Je vais à Reims le voir, il est super musclé, regardez !" },
+        { type: 'talk', name: 'Élodie & Isabelle', text: "😲 😶" },
+        { type: 'talk', name: 'Isabelle', text: "Il est gentil avec toi au moins ? Et il a toutes ses dents ?" },
+        { type: 'talk', name: 'Élodie', text: "C’est le principal !" },
+        { type: 'talk', name: 'Jackie', text: "Ouais, il est adorable ! 😍" },
+
+        { type: 'trans', text: 'Chapitre 6 : Les commères', dur: 2000 },
+        { type: 'split', l: 'bg_tl_isabelle.png', r: 'bg_tl_elodie.png' },
+        { type: 'talk', name: '', text: "Le téléphone sonne" },
+        { type: 'talk', name: 'Isabelle', text: "Radio Langue de Putes, bonjour ! 😏" },
+        { type: 'talk', name: 'Élodie', text: "😂 Comment ça va ?" },
+        { type: 'talk', name: 'Isabelle', text: "Ça n'arrête pas mais ça va et toi ?" },
+        { type: 'talk', name: 'Élodie', text: "Le silence de mort coupé par les rires de poufs, comme d’hab quoi" },
+        { type: 'talk', name: 'Isabelle', text: "Super ! Bon faut que je raconte..." },
+        { type: 'shake', dur: 1000, text: "AAAATCHHHHHHOUUUUUUUUMMMMMMM !!!!!!!" },
+        { type: 'talk', name: 'Isabelle', text: "C’était quoi ça ?!" },
+        { type: 'talk', name: 'Élodie', text: "C’est JPP" },
+        { type: 'talk', name: 'Isabelle', text: "Ah tous les coups il s’est chié dessus ! 🤣" },
+        { type: 'split', off: true },
+        { type: 'trans', text: 'MINI-JEU : Allô ?', desc: "Déplace Isabelle pour rattraper tous les téléphones qui tombent !", dur: 4000 },
+        { type: 'mj', id: 6, badge: 'badge_commere.png', bg: 'bg_game_6.png' },
+
+        { type: 'trans', text: 'Chapitre 7 : Moundir le glandeur', dur: 2000 },
+        { type: 'bg', img: 'bg_office.png' },
+        { type: 'sprite', l: ASSETS.elodie, r: ASSETS.isabelle, c:null },
+        { type: 'talk', name: 'Élodie', text: "Psssssst ! Isabelle !" },
+        { type: 'talk', name: 'Isabelle', text: "Quoi ? Quoi ?" },
+        { type: 'talk', name: 'Élodie', text: "Regarde Moundir, il est sur la centrale !" },
+        { type: 'talk', name: 'Isabelle', text: "Ah il change, hier c'était Amazon." },
+        { type: 'talk', name: 'Élodie', text: "Il fait quoi de sa journée sérieux ?" },
+        { type: 'talk', name: 'Isabelle', text: "Rien. Il excelle dans l'art de rien faire. Suffit d'avoir un bon coup de langue !" },
+        { type: 'talk', name: 'Élodie', text: "Bah en même temps vu le peu de temps qu'il passe à son bureau !" },
+        { type: 'talk', name: 'Isabelle', text: "C'est clair, lui il fait son nombre de pas !" },
+        { type: 'talk', name: 'Élodie', text: "Regarde, il part encore en vadrouille." },
+        { type: 'talk', name: 'Isabelle', text: "À ton avis, il va faire un petit caca ou une petite prière ? 😂" },
+        { type: 'trans', text: 'MINI-JEU : Cache-cache', desc: "Trouve les 5 Moundir cachés dans le décor avant la fin du temps !", dur: 4000 },
+        { type: 'mj', id: 7, badge: 'Badge_paresseux.png', bg: 'bg_game_7.jpg' },
+
+        { type: 'trans', text: 'Chapitre 8 : Les sportives en herbe', dur: 2000 },
+        { type: 'bg', img: 'bg_sport.png' },
+        { type: 'sprite', l: ASSETS.elodie, r: ASSETS.isabelle },
+        { type: 'talk', name: 'Isabelle', text: "Bon vas-y je te suis." },
+        { type: 'talk', name: 'Élodie', text: "Ok je te montre le mouvement. Tu te places comme ça et hop tu y vas." },
+        { type: 'talk', name: 'Isabelle', text: "Euh, mais je vais pas pouvoir faire ça moi !" },
+        { type: 'talk', name: 'Élodie', text: "Mais si on va y aller doucement vas-y on commence léger." },
+        { type: 'talk', name: 'Isabelle', text: "Ah mais tu vas me tuer à me mettre tout ce poids !! 😱" },
+        { type: 'talk', name: 'Élodie', text: "Mais non, fais moi confiance c'est plus léger que ce que tu crois !" },
+        { type: 'talk', name: 'Isabelle', text: "Ok… Mais si je meurs, c'est de ta faute et tu te démerderas à l'expliquer à André !" },
+        { type: 'talk', name: 'Élodie', text: "Allez, on y va ! 💪" },
+        { type: 'trans', text: 'MINI-JEU : Musculation', desc: "Clique le plus vite possible pour remplir la jauge et soulever la barre !", dur: 4000 },
+        { type: 'mj', id: 8, badge: 'badge_sportives.png', bg: 'bg_sport.png' },
+
+        { type: 'trans', text: 'Chapitre 9 : Le départ', dur: 2000 },
+        { type: 'bg', img: 'bg_restaurant.png' },
+        { type: 'sprite', l: ASSETS.elodie, c: ASSETS.jackie, r: ASSETS.isabelle },
+        { type: 'talk', name: 'Élodie', text: "Tiens, on a des cadeaux pour toi !" },
+        { type: 'talk', name: 'Isabelle', text: "❤️ 😭" },
+        { type: 'talk', name: 'Isabelle', text: "Merci beaucoup! Vraiment ! Et pour la carte, c’est peut-être mieux que je la lise après ?" },
+        { type: 'talk', name: 'Élodie', text: "Oui plus tard c’est mieux !" },
+        { type: 'talk', name: 'Isabelle', text: "😊" },
+        { type: 'trans', text: 'A la fin de la journée', dur: 2000 },
+        { type: 'bg', img: 'bg_parking.png' },
+        { type: 'sprite', l: ASSETS.elodie, r: ASSETS.isabelle },
+        { type: 'talk', name: 'Isabelle', text: "C’est bizarre, je réalise pas que c’était mon dernier jour." },
+        { type: 'talk', name: 'Élodie', text: "Moi je réalise pas que je te verrai pas tous les jours. Tu vas vraiment me manquer 🫂" },
+        { type: 'talk', name: 'Isabelle', text: "😢" },
+        { type: 'talk', name: 'Élodie', text: "Ah non ! On a réussi à ne pas pleurer jusqu’à présent alors on va pas s’y mettre maintenant !" },
+        { type: 'talk', name: 'Isabelle', text: "Oui ! Bon allez, j’y vais. Bisous !" },
+        { type: 'talk', name: 'Élodie', text: "Et n’oublie pas ta carte !" },
+        { type: 'talk', name: 'Isabelle', text: "😘 Promis !" },
+        { type: 'trans', text: 'MINI-JEU : Le Pacte', desc: "Clique sur le COEUR pour Élodie et sur le DOIGT pour les autres !", dur: 4000 },
+        { type: 'mj', id: 9, badge: 'badge_amitie.png', bg: 'bg_game_9.png' },
+
+        { type: 'trans', text: 'LA FIN', dur: 800 },
+        { type: 'strike_end' },
+        { type: 'bg', img: 'bg_office.png' },
+        { type: 'sprite', l: null, c: ASSETS.elodie, r: null },
+        { type: 'talk', name: 'Élodie (pensée)', text: "La déprime !! Mais pourquoi je bosse avec autant d'abrutis ! 😢 " },
+	{ type: 'talk', name: '', text: "Un nouveau message d’Isabelle ♥️" },
+        { type: 'talk', name: 'Élodie', text: "😊 😂" },
+        { type: 'end_screen' }
+    ];
+
+    function startGame() {
+        document.getElementById('screen-home').classList.remove('active');
+        document.getElementById('screen-vn').classList.add('active');
+        nextStep();
+    }
+
+    function nextStep() {
+        if (currentStep >= SCENARIO.length) return;
+        const data = SCENARIO[currentStep];
+        const diag = document.getElementById('dialogue-container');
+        diag.style.display = 'none';
+
+        if (data.type === 'trans') {
+            const ts = document.getElementById('transition-screen');
+            ts.style.display = 'flex';
+            document.getElementById('trans-text').innerText = data.text;
+            document.getElementById('mj-desc').innerText = data.desc || "";
+            setTimeout(() => { ts.style.display = 'none'; currentStep++; nextStep(); }, data.dur);
+        } else if (data.type === 'bg') {
+            document.getElementById('screen-vn').style.backgroundImage = `url('${PATHS.bg + data.img}')`;
+            currentStep++; nextStep();
+        } else if (data.type === 'sprite') {
+            if (data.l !== undefined) setSprite('l', data.l);
+            if (data.c !== undefined) setSprite('c', data.c);
+            if (data.r !== undefined) setSprite('r', data.r);
+            currentStep++; nextStep();
+        } else if (data.type === 'talk' || data.type === 'shake') {
+            diag.style.display = 'block';
+            document.getElementById('dialogue-name').innerText = data.name || "!!!";
+            document.getElementById('dialogue-text').innerText = data.text;
+            if(data.type === 'shake') {
+                document.getElementById('game-container').classList.add('shake');
+                setTimeout(() => document.getElementById('game-container').classList.remove('shake'), 1000);
+            }
+            currentStep++;
+        } else if (data.type === 'mj') {
+            initMiniGame(data);
+        } else if (data.type === 'split') {
+            const sc = document.getElementById('split-container');
+            if (data.off) sc.style.display = 'none';
+            else {
+                sc.style.display = 'block';
+                document.getElementById('split-l').style.backgroundImage = `url('${PATHS.bg + data.l}')`;
+                document.getElementById('split-r').style.backgroundImage = `url('${PATHS.bg + data.r}')`;
+                setSprite('l', null); setSprite('r', null); setSprite('c', null);
+            }
+            currentStep++; nextStep();
+        } else if (data.type === 'strike_end') {
+            const ts = document.getElementById('transition-screen');
+            ts.style.display = 'flex';
+            const txt = document.getElementById('trans-text');
+            txt.innerText = "LA FIN"; txt.style.textDecoration = "line-through"; txt.style.color = "var(--red)";
+            setTimeout(() => { ts.style.display = 'none'; txt.style.textDecoration = "none"; txt.style.color = "#fff"; currentStep++; nextStep(); }, 1200);
+        } else if (data.type === 'end_screen') { showFinalScreen(); }
+    }
+
+    function setSprite(pos, src) {
+        const img = document.getElementById('char-' + pos);
+        if (!src) img.style.display = 'none';
+        else { img.src = src; img.style.display = 'block'; }
+    }
+
+    function updateHUD(scoreVal, timerVal, timerLabel = "Temps") {
+        document.getElementById('mj-score-label').innerText = "Score: " + scoreVal;
+        document.getElementById('mj-timer-label').innerText = timerLabel + ": " + Math.max(0, Math.ceil(timerVal));
+    }
+
+    function initMiniGame(mjData) {
+        const mjLayer = document.getElementById('mj-layer');
+        const arena = document.getElementById('mj-arena');
+        const ctrl = document.getElementById('mj-controls');
+        mjLayer.style.display = 'block';
+        mjLayer.style.backgroundImage = `url('${PATHS.bg + mjData.bg}')`;
+        arena.innerHTML = "";
+        ctrl.innerHTML = ""; ctrl.style.display = 'none';
+        score = 0;
+
+        if ([1, 4, 6].includes(mjData.id)) {
+            timer = 12;
+            const isMove = [4, 6].includes(mjData.id);
+            let p; if (isMove) {
+                p = document.createElement('img');
+                p.src = ASSETS.isabelle; p.className = 'player-mj'; p.style.left = "40%";
+                arena.appendChild(p);
+                mjLayer.onmousemove = mjLayer.ontouchmove = (e) => {
+                    let rect = mjLayer.getBoundingClientRect();
+                    let x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+                    p.style.left = Math.max(0, Math.min(80, (x / rect.width * 100 - 10))) + "%";
+                };
+            }
+            mjLoop = setInterval(() => {
+                const item = document.createElement('img'); item.className = 'falling';
+                let type = 'good';
+                if (mjData.id === 1) {
+                    let r = Math.random();
+                    if (r < 0.4) item.src = ASSETS.coffee; else if (r < 0.7) { item.src = ASSETS.tea; type = 'bad'; } else { item.src = ASSETS.eau; type = 'bad'; }
+                    item.style.width = "70px";
+                } else if (mjData.id === 4) { item.src = ASSETS.caca; type = 'bad'; item.style.width = "60px"; }
+                else { item.src = ASSETS.tel; item.style.width = "50px"; }
+                
+                item.style.left = Math.random() * 80 + 10 + "%"; item.style.top = "-70px";
+                arena.appendChild(item);
+               
+                let top = -70;
+                let fall = setInterval(() => {
+                    top += 4; item.style.top = top + "px";
+                    if (isMove) {
+                        let pr = p.getBoundingClientRect(), ir = item.getBoundingClientRect();
+                        if (ir.bottom >= pr.top && ir.left < pr.right && ir.right > pr.left) {
+                            if (mjData.id !== 4) {
+                                if (type === 'good') score++;
+                                else if(score > 0) score--; 
+                            }
+                            updateHUD(score, timer);
+                            clearInterval(fall); item.remove();
+                        }
+                    } else {
+                        item.onclick = () => { if (type === 'good') score++;
+                        else if(score > 0) score--; updateHUD(score, timer); clearInterval(fall); item.remove(); };
+                    }
+                    if (top > 700) { clearInterval(fall); item.remove(); }
+                }, 20);
+                timer -= 0.5; updateHUD(score, timer); if (timer <= 0) { clearInterval(mjLoop); endMJ(mjData.badge); }
+            }, 600);
+        }
+
+        else if (mjData.id === 2) {
+            timer = 15;
+            ctrl.style.display = 'flex';
+            ctrl.innerHTML = `<img src="${ASSETS.d_urgent}" class="mj-btn-img" onclick="checkDoc('u')"><img src="${ASSETS.d_faire}" class="mj-btn-img" onclick="checkDoc('f')"><img src="${ASSETS.d_traite}" class="mj-btn-img" onclick="checkDoc('t')">`;
+            const launch = () => {
+                const target = ['u','f','t'][Math.floor(Math.random()*3)];
+                const imgMap = {u: ASSETS.d_urgent, f: ASSETS.d_faire, t: ASSETS.d_traite};
+                arena.innerHTML = `<img src="${imgMap[target]}" style="width:180px; position:absolute; top:30%; left:50%; transform:translateX(-50%);">`;
+                window.checkDoc = (c) => { if(c===target) score++; updateHUD(score, timer); launch(); };
+            };
+            launch();
+            mjLoop = setInterval(() => { timer--; updateHUD(score, timer); if(timer<=0) { clearInterval(mjLoop); endMJ(mjData.badge); } }, 1000);
+        }
+
+        else if (mjData.id === 3) {
+            timer = 15;
+            mjLoop = setInterval(() => {
+                const e = document.createElement('img');
+                e.src = [ASSETS.jpp, ASSETS.bonanza, ASSETS.cops][Math.floor(Math.random()*3)];
+                e.style.cssText = `position:absolute; width:120px; left:${Math.random()*70+10}%; top:${Math.random()*50+20}%; cursor:pointer; z-index:160;`;
+                e.onclick = () => { score++; e.remove(); updateHUD(score, timer); };
+                arena.appendChild(e);
+                setTimeout(() => { if(e) e.remove(); }, 1200);
+                timer -= 1; updateHUD(score, timer); if (timer <= 0) { clearInterval(mjLoop); endMJ(mjData.badge); }
+            }, 1000);
+        }
+
+        else if (mjData.id === 5) {
+            let list = [];
+            for(let i=1; i<=7; i++) list.push({s: PATHS.profiles + `beau_${i}.png`, g: true});
+            for(let i=1; i<=5; i++) list.push({s: PATHS.profiles + `moche_${i}.png`, g: false});
+            list.sort(() => Math.random() - 0.5);
+            ctrl.style.display = 'flex';
+            ctrl.innerHTML = `<button class="btn-swipe btn-red" onclick="tnd(false)">✖</button><button class="btn-swipe btn-green" onclick="tnd(true)">❤</button>`;
+            let idx = 0;
+            const showP = () => {
+                updateHUD(score, list.length - idx, "Reste");
+                if(idx >= list.length) { endMJ(mjData.badge); return; }
+                arena.innerHTML = `<img src="${list[idx].s}" style="width:400px; height:500px; object-fit:cover; border:5px solid white; position:absolute; top:5%; left:50%; transform:translateX(-50%);">`;
+                window.tnd = (v) => { if(v === list[idx].g) score++; idx++; showP(); };
+            };
+            showP();
+        }
+
+        else if (mjData.id === 7) {
+            timer = 20;
+            let count = 0;
+            for(let i=0; i<5; i++){
+                const m = document.createElement('img');
+                m.src = ASSETS.moundir;
+                m.style.cssText = `position:absolute; width:70px; left:${Math.random()*80+5}%; top:${Math.random()*70+10}%; cursor:pointer; z-index:160;`;
+                m.onclick = function() { count++; score++; this.remove(); updateHUD(score, timer);
+                if(count>=5) endMJ(mjData.badge); };
+                arena.appendChild(m);
+            }
+            mjLoop = setInterval(() => { timer--; updateHUD(score, timer); if(timer<=0) { clearInterval(mjLoop); endMJ(mjData.badge); } }, 1000);
+        }
+
+        else if (mjData.id === 8) {
+            timer = 12;
+            score = 0;
+            arena.innerHTML = `
+                <div style="position:absolute; top:15%; left:50%; transform:translateX(-50%); width:60px; height:300px; border:4px solid white; background:#222; border-radius:10px; overflow:hidden;">
+                    <div id="sport-jauge" style="position:absolute; bottom:0; width:100%; height:0%; background:linear-gradient(to top, #ff69b4, #2ecc71); transition: height 0.1s ease;"></div>
+                </div>
+                <img src="${ASSETS.isabelle}" style="position:absolute; bottom:50px; left:50%; transform:translateX(-50%); height:150px;">
+            `;
+            ctrl.style.display = 'flex';
+            ctrl.innerHTML = `<button onmousedown="liftSport()" ontouchstart="liftSport()">SOULEVER !</button>`;
+            let currentPower = 0;
+            window.liftSport = () => {
+                currentPower = Math.min(100, currentPower + 15);
+                if(currentPower >= 100) { score++; currentPower = 0; }
+                updateHUD(score, timer);
+            };
+            mjLoop = setInterval(() => {
+                timer -= 0.1;
+                currentPower = Math.max(0, currentPower - 2);
+                document.getElementById('sport-jauge').style.height = currentPower + "%";
+                updateHUD(score, timer);
+                if(timer <= 0) { clearInterval(mjLoop); endMJ(mjData.badge); }
+            }, 100);
+        }
+
+        else if (mjData.id === 9) {
+            let count = 0;
+            let lastChar = "";
+            ctrl.style.display = 'flex';
+            ctrl.innerHTML = `<img src="${ASSETS.middlefinger}" class="mj-btn-img" onclick="triAdieu(false)"><img src="${ASSETS.heart}" class="mj-btn-img" onclick="triAdieu(true)">`;
+            const nxt = () => {
+                updateHUD(score, 20 - count, "Reste");
+                if(count >= 20) { endMJ(mjData.badge); return; }
+                const pool = [ASSETS.elodie, ASSETS.jpp, ASSETS.cops, ASSETS.bonanza];
+                let pick; do { pick = pool[Math.floor(Math.random()*pool.length)]; } while (pick === lastChar);
+                lastChar = pick;
+                arena.innerHTML = `<img src="${pick}" style="width:250px; position:absolute; top:20%; left:50%; transform:translateX(-50%);">`;
+                window.triAdieu = (v) => { 
+                    if((v && pick===ASSETS.elodie) || (!v && pick!==ASSETS.elodie)) score++;
+                    count++; nxt();
+                };
+            };
+            nxt();
+        }
+    }
+
+    function endMJ(badgeFile) {
+        clearInterval(mjLoop);
+        document.getElementById('mj-layer').style.display = 'none';
+        const bSrc = PATHS.item + badgeFile;
+        document.getElementById('badge-img').src = bSrc;
+        document.getElementById('badge-modal').style.display = 'flex';
+        collectedBadges.push(bSrc);
+    }
+
+    function closeBadge() {
+        document.getElementById('badge-modal').style.display = 'none';
+        currentStep++; nextStep();
+    }
+
+    function showFinalScreen() {
+        document.getElementById('screen-vn').classList.remove('active');
+        const fs = document.getElementById('screen-final');
+        fs.classList.add('active'); fs.style.display = 'flex';
+        
+        fs.onclick = () => { fs.classList.remove('active'); showFin1(); };
+        
+        document.getElementById('final-top-text').innerText = "L'AVENTURE CONTINUE !";
+        const grid = document.getElementById('badge-grid'); grid.innerHTML = "";
+        collectedBadges.forEach(b => { const img = document.createElement('img'); img.src = b; img.style.width = "60px"; grid.appendChild(img); });
+        document.getElementById('final-message').innerHTML = `Bravo ! Tu as survécu...<br><br><b>Tu as obtenu tous les badges (non, ce ne sont pas des chakras !), voici des indices sur ton cadeau :</b><br>Papillons | Rire & Détente | Insecte | Moi.<br><br>Sauras-tu deviner de quoi il s'agit ?<br><br>Rendez-vous le 31/01.<br>Joyeux anniversaire ! ❤️<br>- Élodie`;
+        startConfetti();
+    }
+
+    function showFin1() {
+        const f1 = document.getElementById('final-img-1');
+        f1.style.backgroundImage = `url('${PATHS.bg}Fin_1.png')`;
+        f1.classList.add('active');
+    }
+
+    function showLastScreen() {
+        document.getElementById('final-img-1').classList.remove('active');
+        const f2 = document.getElementById('final-img-2');
+        f2.style.backgroundImage = `url('${PATHS.bg}Fin_2.png')`;
+        f2.classList.add('active');
+    }
+
+    function startConfetti() {
+        const c = document.getElementById('fx-canvas'), ctx = c.getContext('2d');
+        c.width = window.innerWidth; c.height = window.innerHeight;
+        let op = 1;
+        let p = Array.from({length: 80}, () => ({ x: Math.random()*c.width, y: Math.random()*c.height, r: Math.random()*6+2, color: `hsl(${Math.random()*360}, 100%, 50%)`, v: Math.random()*3+2 }));
+        function draw() {
+            ctx.clearRect(0,0,c.width,c.height); ctx.globalAlpha = op;
+            p.forEach(i => { ctx.beginPath(); ctx.fillStyle = i.color; ctx.arc(i.x, i.y, i.r, 0, Math.PI*2); ctx.fill(); i.y += i.v; if (i.y > c.height) i.y = -10; });
+            if (op > 0) requestAnimationFrame(draw);
+        }
+        draw();
+        setTimeout(() => { let f = setInterval(() => { op -= 0.02; if (op <= 0) { clearInterval(f); ctx.clearRect(0,0,c.width,c.height); } }, 50); }, 5000);
+    }
+</script>
+</body>
+</html>
